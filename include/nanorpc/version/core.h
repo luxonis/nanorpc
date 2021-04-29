@@ -12,11 +12,18 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace nanorpc::version::core
+namespace nanorpc
+{
+namespace version
+{
+namespace core
 {
 
 using protocol = std::integral_constant<std::uint32_t, 1>;
 
-}   // namespace nanorpc::version::core
+} // namespace core
+} // namespace version
+} // namespace nanorpc
+
 
 #endif  // !__NANO_RPC_VERSION_CORE_H__

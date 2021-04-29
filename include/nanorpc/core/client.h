@@ -9,21 +9,24 @@
 #define __NANO_RPC_CORE_CLIENT_H__
 
 // STD
-#include <any>
 #include <functional>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
 
 // NANORPC
+#include "nanorpc/core/compat/compat.h"
 #include "nanorpc/core/detail/pack_meta.h"
 #include "nanorpc/core/exception.h"
 #include "nanorpc/core/type.h"
+#include "nanorpc/core/hash.h"
 #include "nanorpc/version/core.h"
 
-namespace nanorpc::core
+
+namespace nanorpc
+{
+namespace core
 {
 
 template <typename TPacker>
@@ -39,9 +42,9 @@ public:
     }
 
     template <typename ... TArgs>
-    result call(std::string_view name, TArgs && ... args)
+    result call(const std::string& name, TArgs && ... args)
     {
-        return call(std::hash<std::string_view>{}(name), std::forward<TArgs>(args) ... );
+        return call(hash_id(name), std::forward<TArgs>(args) ... );
     }
 
     template <typename ... TArgs>
@@ -110,7 +113,7 @@ private:
             if (!value_ && !deserializer_)
                 throw exception::client{"[nanorpc::core::client::result::as] No data."};
 
-            using Type = std::decay_t<T>;
+            using Type = typename std::decay<T>::type;
 
             if (!value_)
             {
@@ -124,7 +127,7 @@ private:
                  deserializer_.reset();
             }
 
-            return std::any_cast<Type>(*value_);
+            return compat::any_cast<Type>(*value_);
         }
 
         template <typename T>
@@ -137,8 +140,8 @@ private:
         template <typename>
         friend class client;
 
-        mutable std::optional<deserializer_type> deserializer_;
-        mutable std::optional<std::any> value_;
+        mutable compat::optional<deserializer_type> deserializer_;
+        mutable compat::optional<compat::any> value_;
 
         result(deserializer_type deserializer)
             : deserializer_{std::move(deserializer)}
@@ -150,6 +153,7 @@ private:
     };
 };
 
-}   // namespace nanorpc::core
+}   // namespace core
+}   // namespace nanorpc
 
 #endif  // !__NANO_RPC_CORE_CLIENT_H__

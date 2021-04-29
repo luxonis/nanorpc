@@ -15,31 +15,40 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <type_traits>
 
 // NANORPC
 #include "nanorpc/core/detail/function_meta.h"
 #include "nanorpc/core/detail/pack_meta.h"
 #include "nanorpc/core/exception.h"
 #include "nanorpc/core/type.h"
+#include "nanorpc/core/hash.h"
 #include "nanorpc/version/core.h"
 
-namespace nanorpc::core
+
+namespace nanorpc
 {
+namespace core
+{
+
+// Helper
+template< class T, class U >
+constexpr bool is_same_v = std::is_same<T, U>::value;
 
 template <typename TPacker>
 class server final
 {
 public:
     template <typename TFunc>
-    void handle(std::string_view name, TFunc func)
+    void handle(std::string name, TFunc func)
     {
-        handle(std::hash<std::string_view>{}(name), std::move(func));
+        handle(hash_id(name), std::move(func));
     }
 
     template <typename TFunc>
     void handle(type::id id, TFunc func)
     {
-        if (handlers_.find(id) != end(handlers_))
+        if (handlers_.find(id) != std::end(handlers_))
         {
             throw std::invalid_argument{"[" + std::string{__func__ } + "] Failed to add handler. "
                     "The id \"" + std::to_string(id) + "\" already exists."};
@@ -47,11 +56,12 @@ public:
 
         auto wrapper = [f = std::move(func)] (deserializer_type &request, serializer_type &response)
             {
-                std::function func{std::move(f)};
+                auto func = detail::lambdaToFunction(std::move(f));
                 using function_meta = detail::function_meta<decltype(func)>;
                 using arguments_tuple_type = typename function_meta::arguments_tuple_type;
                 arguments_tuple_type data;
                 request.unpack(data);
+
                 apply(std::move(func), std::move(data), response);
             };
 
@@ -93,7 +103,7 @@ public:
                 .pack(detail::pack::meta::type::response);
 
         auto const iter = handlers_.find(function_id);
-        if (iter == end(handlers_))
+        if (iter == std::end(handlers_))
             throw exception::server{"[nanorpc::core::server::execute] Function not found."};
 
         try
@@ -130,24 +140,25 @@ private:
 
     template <typename TFunc, typename TArgs>
     static
-    std::enable_if_t<!std::is_same_v<std::decay_t<decltype(std::apply(std::declval<TFunc>(), std::declval<TArgs>()))>, void>, void>
+    std::enable_if_t<!is_same_v<std::decay_t< decltype( compat::apply(std::declval<TFunc>(), std::declval<TArgs>()) ) >, void>, void>
     apply(TFunc func, TArgs args, serializer_type &serializer)
     {
-        auto data = std::apply(std::move(func), std::move(args));
+        auto data = compat::apply(std::move(func), std::move(args));
         serializer = serializer.pack(detail::pack::meta::status::good);
         serializer = serializer.pack(data);
     }
 
     template <typename TFunc, typename TArgs>
     static
-    std::enable_if_t<std::is_same_v<std::decay_t<decltype(std::apply(std::declval<TFunc>(), std::declval<TArgs>()))>, void>, void>
+    std::enable_if_t<is_same_v< std::decay_t< decltype( compat::apply(std::declval<TFunc>(), std::declval<TArgs>()) ) > , void>, void>
     apply(TFunc func, TArgs args, serializer_type &serializer)
     {
-        std::apply(std::move(func), std::move(args));
+        compat::apply(std::move(func), std::move(args));
         serializer = serializer.pack(detail::pack::meta::status::good);
     }
 };
 
-}   // namespace nanorpc::core
+}   // namespace core
+}   // namespace nanorpc
 
 #endif  // !__NANO_RPC_CORE_SERVER_H__
